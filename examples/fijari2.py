@@ -41,32 +41,32 @@ def main():
 #        print('4')
 
 # WORKS
-        import imagej
-#        ij = imagej.init('net.imagej:imagej', headless=False)
-        ij = imagej.init('sc.fiji:fiji+net.imagej:imagej-legacy:0.37.1-SNAPSHOT', headless=False)
-        print(ij.getVersion())
-        ij.launch()
-        if 'viewer' in globals():
-            global viewer
-            if viewer:
-                viewer.ij = ij
-#        ij.ui().showUI()
-        print("Launched ImageJ")
+        import scyjava_config
+#        scyjava_config.add_options('-Djava.awt.headless=true')
+#        scyjava_config.add_options('-Xmx' + max_mem_mb + 'm')
+        scyjava_config.add_repositories(scijava=scyjava_config.maven_scijava_repository())
+        scyjava_config.add_endpoints('sc.fiji:fiji', 'net.imagej:imagej-legacy:0.37.1-SNAPSHOT', 'net.imglib2:imglib2-imglyb:0.3.1')
+        import scyjava
+        from jnius import autoclass
+        EventQueue = autoclass('java.awt.EventQueue')
+        isEDT = EventQueue.isDispatchThread()
+        print(f'isEDT? {isEDT}')
 
-        # TODO: Determine whether this is really necessary.
-        # In Philipp's experience, Python quits if you don't keep it alive --
-        # even when Java still has things including GUI going on.
-        import jnius, time
-        Window = jnius.autoclass('java.awt.Window')
-        System = jnius.autoclass('java.lang.System')
-        def sleeper():
-            # NB: Quit when all Java AWT windows are gone.
-            while any(True for w in Window.getWindows() if w.isVisible()):
-                time.sleep( 0.1 )
-            System.exit(0)
+        def start_imagej():
+            print('Starting ImageJ on its own thread')
+            import imagej
+            ij = imagej.init(headless=False, new_instance=True)
+            print(ij.getVersion())
+            ij.launch()
+            if 'viewer' in globals():
+                global viewer
+                if viewer:
+                    viewer.ij = ij
+    #        ij.ui().showUI()
+            print("Launched ImageJ")
 
         import threading
-        t = threading.Thread( target=sleeper )
+        t = threading.Thread( target=start_imagej )
         t.start()
 
         print('Returning from run_on_start()')
@@ -78,8 +78,8 @@ def main():
     print('--> napari started')
 
     print('--> Starting ImageJ via QT')
-
     QtCore.QTimer.singleShot( 0, run_on_start )
+    print('--> Back on the main thread after ImageJ start')
 
     print ( "Entering qt event loop" )
     app.exec_()
