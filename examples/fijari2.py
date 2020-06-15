@@ -45,7 +45,7 @@ def main():
 #        scyjava_config.add_options('-Djava.awt.headless=true')
 #        scyjava_config.add_options('-Xmx' + max_mem_mb + 'm')
         scyjava_config.add_repositories(scijava=scyjava_config.maven_scijava_repository())
-        scyjava_config.add_endpoints('sc.fiji:fiji', 'net.imagej:imagej-legacy:0.37.1-SNAPSHOT', 'net.imglib2:imglib2-imglyb:0.3.1')
+        scyjava_config.add_endpoints('net.imagej:imagej', 'org.scijava:scijava-common:2.81.0', 'net.imagej:imagej-common:0.29.2', 'net.imglib2:imglib2-imglyb:0.3.1')
         import scyjava
         from jnius import autoclass
         EventQueue = autoclass('java.awt.EventQueue')
@@ -70,6 +70,7 @@ def main():
         t.start()
 
         print('Returning from run_on_start()')
+#        app.quit()
 
     import napari
     print('--> Starting napari')
