@@ -12,6 +12,70 @@ from pathlib import Path
 from textwrap import wrap
 from typing import Any
 
+
+def _try_exec_macos_launcher() -> None:
+    """Replace the current process image with the napari C launcher.
+
+    This causes the macOS menu bar to display 'napari' rather than the
+    Python binary name. macOS derives the application name shown in the
+    menu bar exclusively from the process image (Mach-O binary) name; no
+    runtime API can override this.
+
+    Uses os.execv, which replaces the process image in-place (same PID)
+    without spawning a subprocess. The C binary uses dlopen to load
+    libpython at runtime, so no Python-version-specific linking is needed.
+
+    Falls through silently if the launcher binary is not found, if
+    libpython cannot be located, or if any other error occurs.
+    """
+    import os
+    import sysconfig
+    from importlib.resources import files
+
+    # Re-entry guard: set before execv so the child process skips this path.
+    if os.environ.get('_NAPARI_LAUNCHER_ACTIVE'):
+        return
+
+    # Only exec when invoked as the napari entrypoint or `python -m napari`.
+    # Prevents accidentally killing a parent process if main() is called
+    # programmatically from another script.
+    argv0 = Path(sys.argv[0]).name if sys.argv else ''
+    if argv0 not in ('napari', '__main__.py'):
+        return
+
+    # Don't exec while a debugger is attached.
+    if 'pdb' in sys.modules or 'pydevd' in sys.modules:
+        return
+
+    try:
+        launcher = str(files('napari._launcher').joinpath('napari'))
+    except Exception:
+        return
+    if not (os.path.isfile(launcher) and os.access(launcher, os.X_OK)):
+        return
+
+    # Locate libpython so the C binary can dlopen it.
+    ldlibrary = sysconfig.get_config_var('LDLIBRARY')  # e.g. 'libpython3.12.dylib'
+    libdir = sysconfig.get_config_var('LIBDIR')
+    if not ldlibrary or not libdir:
+        return
+    libpython = os.path.join(libdir, ldlibrary)
+    if not os.path.isfile(libpython):
+        # macOS framework builds name the dylib 'Python' (no .dylib extension)
+        # inside the framework directory.
+        libpython = os.path.join(libdir, ldlibrary.removesuffix('.dylib'))
+    if not os.path.isfile(libpython):
+        return
+
+    os.environ['_NAPARI_LAUNCHER_ACTIVE'] = '1'
+    # execv argv: [self, libpython, python_exe, '-m', 'napari', <user args>]
+    os.execv(
+        launcher,
+        [launcher, libpython, sys.executable, '-m', 'napari'] + sys.argv[1:],
+    )
+    # execv does not return on success; if we reach here it failed silently.
+    del os.environ['_NAPARI_LAUNCHER_ACTIVE']
+
 from napari import Viewer
 from napari.errors import ReaderPluginError
 from napari.utils._startup_script import _run_configured_startup_script
@@ -369,6 +433,8 @@ def _run_plugin_module(mod, plugin_name):
 
 
 def main():
+    if sys.platform == 'darwin':
+        _try_exec_macos_launcher()
     _run()
 
 

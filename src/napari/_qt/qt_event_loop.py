@@ -209,11 +209,6 @@ def get_qapp(
             )
 
         argv = sys.argv.copy()
-        if sys.platform == 'darwin' and not argv[0].endswith('napari'):
-            # Make sure the app name in the Application menu is `napari`
-            # which is taken from the basename of sys.argv[0]; we use
-            # a copy so the original value is still available at sys.argv
-            argv[0] = 'napari'
 
         if perf_config and perf_config.trace_qt_events:
             from napari._qt.perf.qt_event_tracing import (

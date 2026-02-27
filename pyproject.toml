@@ -369,6 +369,9 @@ napari = [
 napari_builtins = [
     "builtins.yaml",
 ]
+"napari._launcher" = [
+    "napari",
+]
 
 
 [tool.setuptools_scm]
